@@ -4,7 +4,6 @@
  * * This is the secure landing page for Admin users.
  */
 
-// Start a session to access user login information
 session_start();
 
 // Check if the user is NOT logged in or if their role is NOT 'admin'
