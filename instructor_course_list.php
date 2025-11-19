@@ -35,7 +35,7 @@ try {
     // Select courses created by the current instructor
     $sql = "SELECT id, course_code, title, status, created_at FROM courses WHERE instructor_id = ?";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $user_id); 
+    $stmt->bind_param("i", $user_id); // 'i' indicates an integer type for user_id
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -66,19 +66,6 @@ $user_name = $_SESSION['user_name'];
             font-family: 'Inter', sans-serif;
             background-color: #f4f7f9;
         }
-
-        .status-published {
-            background-color: #d1fae5;
-            color: #065f46;
-        }
-
-        /* Green */
-        .status-draft {
-            background-color: #fef3c7;
-            color: #92400e;
-        }
-
-        /* Yellow */
     </style>
 </head>
 
@@ -137,7 +124,7 @@ $user_name = $_SESSION['user_name'];
                                 </td>
                                 <td class="py-3 px-4 border-b">
                                     <?php
-                                    $status_color = $course['status'] === 'published' ? 'status-published' : 'status-draft';
+                                    $status_color = $course['status'] === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
                                     echo "<span class='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {$status_color}'>" . ucfirst($course['status']) . "</span>";
                                     ?>
                                 </td>
@@ -145,12 +132,9 @@ $user_name = $_SESSION['user_name'];
                                     <?php echo date('M d, Y', strtotime($course['created_at'])); ?>
                                 </td>
                                 <td class="py-3 px-4 border-b text-center text-sm">
-                                    <a href="instructor_course_edit.php?id=<?php echo htmlspecialchars($course['id']); ?>"
-                                        class="text-blue-500 hover:text-blue-700 font-medium">Edit</a>
+                                    <a href="#" class="text-blue-500 hover:text-blue-700 font-medium">Edit</a>
                                     <span class="text-gray-300">|</span>
-                                    <a href="instructor_course_delete.php?id=<?php echo htmlspecialchars($course['id']); ?>"
-                                        onclick="return confirm('Are you sure you want to delete this course?')"
-                                        class="text-red-500 hover:text-red-700 font-medium">Delete</a>
+                                    <a href="#" class="text-red-500 hover:text-red-700 font-medium">Delete</a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

@@ -1,21 +1,16 @@
 <?php
 /**
- * SkillPath Project: Instructor Course Creation Page
+ * SkillPath Project: Instructor Course Creation Page (Functional)
  *
- * This page contains the form for creating a new course and the logic
- * to insert the new course into the 'courses' table.
+ * This page allows the instructor to create a new course shell (title, code).
  */
 
 session_start();
-
-// Include the database configuration file (needed for DB_HOST, DB_USER, etc.)
 require_once 'db_config.php';
 
 // Security Check: Must be logged in and the role must be 'instructor'
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'instructor') {
-    session_unset();
-    session_destroy();
-    header("Location: login.html?status=error&message=Access%20Denied.%20Please%20log%20in%20as%20an%20Instructor.");
+    header("Location: login.html?status=error&message=Access%20Denied.");
     exit();
 }
 
@@ -23,66 +18,41 @@ $user_id = $_SESSION['user_id'];
 $message = null;
 $message_type = null;
 
-// --- STEP 1: Process Form Submission ---
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-
-    // Sanitize and retrieve form data
-    $course_code = strtoupper(trim($_POST['course_code']));
+// --- Process Course Creation ---
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['create_course'])) {
+    $course_code = trim($_POST['course_code']);
     $title = trim($_POST['title']);
     $description = trim($_POST['description']);
-    $status = 'draft'; // New courses start as a draft by default
+    $status = 'draft'; // All new courses start as draft
 
-    // Validate essential fields
     if (empty($course_code) || empty($title)) {
-        $message = "Course Code and Title are required fields.";
+        $message = "Error: Course Code and Title are required.";
         $message_type = "error";
     } else {
-        // Connect to the database
-        $conn = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+        try {
+            $conn = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+            $sql = "INSERT INTO courses (course_code, title, description, instructor_id, status) VALUES (?, ?, ?, ?, ?)";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("sssis", $course_code, $title, $description, $user_id, $status);
 
-        if ($conn->connect_error) {
-            $message = "Database connection failed: " . $conn->connect_error;
-            $message_type = "error";
-        } else {
-            // Check if the course code already exists
-            $check_sql = "SELECT id FROM courses WHERE course_code = ?";
-            $check_stmt = $conn->prepare($check_sql);
-            $check_stmt->bind_param("s", $course_code);
-            $check_stmt->execute();
-            $check_result = $check_stmt->get_result();
-
-            if ($check_result->num_rows > 0) {
-                $message = "Error: A course with this code already exists. Please choose a unique code.";
-                $message_type = "error";
+            if ($stmt->execute()) {
+                $new_course_id = $conn->insert_id;
+                $message = "Success! Course '{$title}' created. You can now add materials and assignments.";
+                // Redirect to the course list to show the new course
+                header("Location: instructor_course_list.php?status=success&message=" . urlencode($message));
+                exit();
             } else {
-                // Insert the new course into the database
-                $insert_sql = "INSERT INTO courses (course_code, title, description, instructor_id, status) VALUES (?, ?, ?, ?, ?)";
-                $insert_stmt = $conn->prepare($insert_sql);
-                // The 'sssis' refers to string, string, string, integer (for user_id), string
-                $insert_stmt->bind_param("sssis", $course_code, $title, $description, $user_id, $status);
-
-                if ($insert_stmt->execute()) {
-                    // --- SUCCESS REDIRECT FIX ---
-                    header("Location: instructor_course_create.php?status=success&code=" . urlencode($course_code));
-                    exit();
-
-                } else {
-                    $message = "Error creating course: " . $conn->error;
-                    $message_type = "error";
-                }
-                $insert_stmt->close();
+                $message = "Error creating course: " . $conn->error;
+                $message_type = "error";
             }
-            $check_stmt->close();
+            $stmt->close();
             $conn->close();
+
+        } catch (Exception $e) {
+            $message = "Database Error: " . $e->getMessage();
+            $message_type = "error";
         }
     }
-}
-
-// --- STEP 2: Handle Success Message on Page Load (via URL parameter) ---
-if (isset($_GET['status']) && $_GET['status'] === 'success') {
-    $code = htmlspecialchars($_GET['code'] ?? 'Course');
-    $message = "Success! Course '{$code}' created and saved as DRAFT.";
-    $message_type = "success";
 }
 
 $user_name = $_SESSION['user_name'];
@@ -93,7 +63,7 @@ $user_name = $_SESSION['user_name'];
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create Course | SkillPath</title>
+    <title>Create New Course | SkillPath</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -103,9 +73,9 @@ $user_name = $_SESSION['user_name'];
     </style>
 </head>
 
-<body class="min-h-screen flex flex-col items-center p-4">
+<body class="min-h-screen flex flex-col items-center p-4 bg-gray-100">
 
-    <div class="w-full max-w-4xl bg-white shadow-xl rounded-xl p-8 md:p-12 mt-8">
+    <div class="w-full max-w-2xl bg-white shadow-xl rounded-xl p-8 md:p-12 mt-8">
         <div class="flex justify-between items-center border-b pb-4 mb-6">
             <h1 class="text-3xl font-bold text-teal-700">
                 Create New Course
@@ -117,60 +87,38 @@ $user_name = $_SESSION['user_name'];
 
         <?php if ($message): ?>
             <div
-                class="p-4 mb-4 rounded-lg flex justify-between items-center <?php echo $message_type === 'success' ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-700 border border-red-300'; ?>">
-                <span class="font-medium"><?php echo htmlspecialchars($message); ?></span>
-                <?php if ($message_type === 'success'): ?>
-                    <a href="instructor_course_list.php"
-                        class="bg-teal-500 text-white text-sm py-1 px-3 rounded hover:bg-teal-600 transition duration-150">
-                        View All Courses
-                    </a>
-                <?php endif; ?>
+                class="p-4 mb-4 rounded-lg <?php echo $message_type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'; ?>">
+                <?php echo htmlspecialchars($message); ?>
             </div>
         <?php endif; ?>
 
-        <form method="POST" action="instructor_course_create.php" class="space-y-6">
+        <form method="POST" action="instructor_course_create.php" class="space-y-4">
+            <input type="hidden" name="create_course" value="1">
 
             <div>
-                <label for="course_code" class="block text-sm font-medium text-gray-700 mb-1">Course Code (e.g., SWE401)
-                    <span class="text-red-500">*</span></label>
-                <input type="text" id="course_code" name="course_code" required maxlength="10"
-                    value="<?php echo htmlspecialchars($_POST['course_code'] ?? ''); ?>"
-                    class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-teal-500 focus:border-teal-500 uppercase transition duration-150"
-                    placeholder="MAX 10 CHARACTERS">
+                <label class="block text-sm font-medium text-gray-700">Course Code (e.g., SWE101)</label>
+                <input type="text" name="course_code" required class="w-full px-3 py-2 border rounded-lg">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Course Title (e.g., Introduction to
+                    Programming)</label>
+                <input type="text" name="title" required class="w-full px-3 py-2 border rounded-lg">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Description</label>
+                <textarea name="description" rows="4" class="w-full px-3 py-2 border rounded-lg"
+                    placeholder="Enter a brief description of the course..."></textarea>
             </div>
 
-            <div>
-                <label for="title" class="block text-sm font-medium text-gray-700 mb-1">Course Title <span
-                        class="text-red-500">*</span></label>
-                <input type="text" id="title" name="title" required
-                    value="<?php echo htmlspecialchars($_POST['title'] ?? ''); ?>"
-                    class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-teal-500 focus:border-teal-500 transition duration-150"
-                    placeholder="e.g., Web Application Development">
-            </div>
-
-            <div>
-                <label for="description" class="block text-sm font-medium text-gray-700 mb-1">Course Description
-                    (Optional)</label>
-                <textarea id="description" name="description" rows="5"
-                    class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-teal-500 focus:border-teal-500 transition duration-150"
-                    placeholder="Provide a detailed description of the course content and objectives."><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
-            </div>
-
-            <div>
-                <button type="submit"
-                    class="w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition duration-150">
-                    Create Course as DRAFT
-                </button>
-            </div>
+            <button type="submit" class="w-full py-2 bg-teal-600 text-white font-medium rounded-lg hover:bg-teal-700">
+                Save New Course
+            </button>
         </form>
 
         <div class="mt-8 text-center text-gray-400 text-xs border-t pt-4">
-            <p>Instructor Page - Role: <?php echo $_SESSION['user_role']; ?> | User ID:
-                <?php echo $_SESSION['user_id']; ?>
-            </p>
+            <p>Instructor Page | User ID: <?php echo $user_id; ?></p>
         </div>
     </div>
-
 </body>
 
 </html>
