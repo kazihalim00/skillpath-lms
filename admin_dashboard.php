@@ -1,9 +1,11 @@
 <?php
 /**
- * SkillPath Project: Admin Dashboard
- * * This is the secure landing page for Admin users.
+ * SkillPath Project: Admin Dashboard (Initial Page)
+ * This page serves as the landing area for authenticated Admin users.
+ * It checks the session to ensure the user is logged in and has the 'admin' role.
  */
 
+// Start a session to access user login information
 session_start();
 
 // Check if the user is NOT logged in or if their role is NOT 'admin'
@@ -17,9 +19,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
 
 // User is successfully authenticated as an Admin.
 $user_name = $_SESSION['user_name'];
-
-// Include the configuration file to access DB_NAME for the debug info
-require_once 'db_config.php';
 
 ?>
 <!DOCTYPE html>
@@ -52,7 +51,7 @@ require_once 'db_config.php';
             Welcome, <?php echo htmlspecialchars($user_name); ?>
         </h1>
         <p class="text-lg text-gray-500 mb-8 border-b pb-4">
-            You are logged in as an **Administrator**.
+            You are logged in as an <b>Administrator</b>.
         </p>
 
         <h2 class="text-2xl font-bold text-gray-700 mb-6">Admin Tools & Oversight</h2>
@@ -111,9 +110,11 @@ require_once 'db_config.php';
 
         <div class="mt-8 text-center text-gray-400 text-xs border-t pt-4">
             <p>Debug Info: Database: <?php echo DB_NAME; ?> | Role: <?php echo $_SESSION['user_role']; ?> | User ID:
-                <?php echo $_SESSION['user_id']; ?></p>
+                <?php echo $_SESSION['user_id']; ?>
+            </p>
         </div>
     </div>
+
 </body>
 
 </html>

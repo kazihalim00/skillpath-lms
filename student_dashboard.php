@@ -1,10 +1,5 @@
 <?php
-/**
- * SkillPath Project: Student Dashboard
- * * This is the secure landing page for Student users.
- */
 
-// Start a session to access user login information
 session_start();
 
 // Security Check: Must be logged in and the role must be 'student'
@@ -77,6 +72,7 @@ $user_name = $_SESSION['user_name'];
             </p>
         </div>
     </div>
+
 </body>
 
 </html>
