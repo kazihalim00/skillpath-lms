@@ -1,5 +1,10 @@
 <?php
+/**
+ * SkillPath Project: Student Dashboard
+ * * This is the secure landing page for Student users.
+ */
 
+// Start a session to access user login information
 session_start();
 
 // Security Check: Must be logged in and the role must be 'student'
@@ -31,14 +36,14 @@ $user_name = $_SESSION['user_name'];
 
 <body class="min-h-screen flex flex-col items-center p-4">
 
-    <div class="w-full max-w-4xl flex justify-end mb-4">
+    <div class="w-full max-w-5xl flex justify-end mb-4">
         <a href="logout.php"
             class="py-2 px-4 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 transition duration-300">
             Logout
         </a>
     </div>
 
-    <div class="w-full max-w-4xl bg-white shadow-2xl rounded-xl p-8 md:p-12">
+    <div class="w-full max-w-5xl bg-white shadow-2xl rounded-xl p-8 md:p-12">
         <h1 class="text-4xl font-extrabold text-blue-700 mb-2">
             Welcome Back, <?php echo htmlspecialchars(explode(' ', $user_name)[0]); ?>
         </h1>
@@ -48,7 +53,7 @@ $user_name = $_SESSION['user_name'];
 
         <h2 class="text-2xl font-bold text-gray-700 mb-6">Your Courses & Progress</h2>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
             <div
                 class="bg-gray-50 p-6 rounded-xl shadow-lg border-t-4 border-blue-500 hover:shadow-xl transition duration-300">
@@ -64,6 +69,14 @@ $user_name = $_SESSION['user_name'];
                 <p class="text-gray-600 mt-2 text-sm">View your official grades and performance summaries.</p>
                 <a href="student_grades.php"
                     class="text-purple-500 hover:text-purple-700 mt-3 block text-sm font-medium">View Grades →</a>
+            </div>
+
+            <div
+                class="bg-gray-50 p-6 rounded-xl shadow-lg border-t-4 border-yellow-500 hover:shadow-xl transition duration-300">
+                <h3 class="text-xl font-semibold text-gray-800">My Appeals</h3>
+                <p class="text-gray-600 mt-2 text-sm">Check status and feedback on your grade challenges.</p>
+                <a href="student_my_appeals.php"
+                    class="text-yellow-600 hover:text-yellow-800 mt-3 block text-sm font-medium">Check Status →</a>
             </div>
         </div>
 
