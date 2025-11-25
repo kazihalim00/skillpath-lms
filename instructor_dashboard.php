@@ -1,6 +1,7 @@
 <?php
 /**
  * SkillPath Project: Instructor Dashboard (Final Organization)
+ *
  * This file organizes the tools into the requested professional workflow: 
  * Creation -> Materials -> Assessment -> Grading.
  */
@@ -47,6 +48,9 @@ try {
     $error_message = "Database Error: Could not fetch courses.";
 }
 
+// Determine Greeting based on Gender (if available, otherwise fallback)
+// Assuming you might have added the gender logic, we can keep it simple or just use the name.
+// For this request, we focus on the Full Name display.
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -92,7 +96,7 @@ try {
 
     <div class="w-full max-w-4xl bg-white shadow-2xl rounded-xl p-8 md:p-12">
         <h1 class="text-4xl font-extrabold text-teal-700 mb-2">
-            Hello, <?php echo htmlspecialchars(explode(' ', $user_name)[0]); ?> Ma'am
+            Hello, <?php echo htmlspecialchars($user_name); ?>
         </h1>
         <p class="text-lg text-gray-500 mb-8 border-b pb-4">
             You are logged in as an **Instructor**.
@@ -139,14 +143,14 @@ try {
             </div>
         </div>
 
-        <h2 class="text-2xl font-bold text-gray-700 mb-6">Instructor Workflow Tools</h2>
+        <h2 class="text-2xl font-bold text-gray-700 mb-6">Course Management Tools</h2>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
             <div
                 class="bg-white p-4 rounded-xl shadow-lg border-t-4 border-teal-500 hover:shadow-xl transition duration-300">
                 <h3 class="text-lg font-semibold text-gray-800">New Course</h3>
-                <p class="text-gray-600 mt-1 text-xs">Start creating a new course shell.</p>
+                <p class="text-gray-600 mt-1 text-xs">Design and publish new learning modules.</p>
                 <a href="instructor_course_create.php"
                     class="text-teal-500 hover:text-teal-700 mt-2 block text-sm font-medium">Start Creation →</a>
             </div>
@@ -166,6 +170,7 @@ try {
                 <a href="instructor_assignments.php"
                     class="text-indigo-500 hover:text-indigo-700 mt-2 block text-sm font-medium">Create/View →</a>
             </div>
+
             <div
                 class="bg-white p-4 rounded-xl shadow-lg border-t-4 border-red-500 hover:shadow-xl transition duration-300">
                 <h3 class="text-lg font-semibold text-gray-800">Grade Appeals</h3>
@@ -173,6 +178,7 @@ try {
                 <a href="instructor_appeals.php"
                     class="text-red-500 hover:text-red-700 mt-2 block text-sm font-medium">View Appeals →</a>
             </div>
+
             <div
                 class="bg-white p-4 rounded-xl shadow-lg border-t-4 border-yellow-600 hover:shadow-xl transition duration-300">
                 <h3 class="text-lg font-semibold text-gray-800">Quiz Builder</h3>
