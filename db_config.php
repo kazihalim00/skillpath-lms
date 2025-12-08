@@ -1,8 +1,11 @@
 <?php
 /**
  * SkillPath Project: Database Configuration
+ *
+ * This version uses the most reliable configuration for MAMP (Host/Port/Password)
  */
 
+// ** MySQL settings - Updated for MAMP reliability ** //
 
 /** The name of the database for SkillPath (confirmed correct: learning_php) */
 define('DB_NAME', 'learning_php');
