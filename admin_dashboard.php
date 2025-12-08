@@ -1,34 +1,37 @@
 <?php
 /**
- * SkillPath Project: Admin Dashboard (Initial Page)
- * This page serves as the landing area for authenticated Admin users.
- * It checks the session to ensure the user is logged in and has the 'admin' role.
+ * SkillPath - Admin Dashboard
+ * Updated: Restored "Batch Course Allocation" button.
  */
-
-// Start a session to access user login information
 session_start();
+require_once 'db_config.php';
 
-// Check if the user is NOT logged in or if their role is NOT 'admin'
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
-    // If they fail the check, destroy the session and send them back to the login page
-    session_unset();
-    session_destroy();
-    header("Location: login.html?status=error&message=Access%20Denied.%20Please%20log%20in%20as%20an%20Admin.");
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+    header("Location: login.php");
     exit();
 }
 
-// User is successfully authenticated as an Admin.
-$user_name = $_SESSION['user_name'];
+$admin_name = $_SESSION['name'] ?? 'Administrator';
 
+// Optional: Fetch quick stats
+$stats = ['users' => 0, 'courses' => 0];
+try {
+    $conn = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+    $stats['users'] = $conn->query("SELECT COUNT(*) FROM users")->fetch_row()[0];
+    $stats['courses'] = $conn->query("SELECT COUNT(*) FROM courses")->fetch_row()[0];
+    $conn->close();
+} catch (Exception $e) {
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard | SkillPath</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -37,84 +40,89 @@ $user_name = $_SESSION['user_name'];
     </style>
 </head>
 
-<body class="min-h-screen flex flex-col items-center p-4">
+<body class="min-h-screen flex flex-col">
 
-    <div class="w-full max-w-4xl flex justify-end mb-4">
-        <a href="logout.php"
-            class="py-2 px-4 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 transition duration-300">
-            Logout
-        </a>
-    </div>
+    <nav class="bg-slate-800 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center">
+                    <span class="text-xl font-bold tracking-tight">SkillPath <span
+                            class="text-slate-400">Admin</span></span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-slate-300">Welcome, <?= htmlspecialchars($admin_name) ?></span>
+                    <a href="logout.php"
+                        class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm font-medium transition">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
 
-    <div class="w-full max-w-4xl bg-white shadow-2xl rounded-xl p-8 md:p-12">
-        <h1 class="text-4xl font-extrabold text-indigo-700 mb-2">
-            Welcome, <?php echo htmlspecialchars($user_name); ?>
-        </h1>
-        <p class="text-lg text-gray-500 mb-8 border-b pb-4">
-            You are logged in as an <b>Administrator</b>.
-        </p>
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
 
-        <h2 class="text-2xl font-bold text-gray-700 mb-6">Admin Tools & Oversight</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+            <div class="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
+                <p class="text-sm text-gray-500 font-medium uppercase">Total Users</p>
+                <p class="text-3xl font-bold text-gray-800"><?= $stats['users'] ?></p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow border-l-4 border-teal-500">
+                <p class="text-sm text-gray-500 font-medium uppercase">Total Courses</p>
+                <p class="text-3xl font-bold text-gray-800"><?= $stats['courses'] ?></p>
+            </div>
+        </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">Administrative Tools</h2>
 
-            <div
-                class="bg-gray-50 p-6 rounded-xl shadow-lg border-t-4 border-blue-500 hover:shadow-xl transition duration-300">
-                <h3 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <svg class="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20v-2a3 3 0 015.356-1.857M7 20h4m-4 0v-2c0-.656-.126-1.283-.356-1.857M17 20h4m-4 0v-2c0-.656-.126-1.283-.356-1.857">
-                        </path>
-                    </svg>
-                    User Management
-                </h3>
-                <p class="text-gray-600 mt-2 text-sm">Oversee all student, instructor, and admin accounts.</p>
-                <a href="user_management.php"
-                    class="text-blue-500 hover:text-blue-700 mt-3 block text-sm font-medium">View Users →</a>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+            <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition border-t-4 border-indigo-600">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Batch Course Allocation</h3>
+                <p class="text-gray-600 text-sm mb-4">Assign specific courses to an entire batch (e.g., "Batch 4 takes
+                    SWE101").</p>
+                <a href="admin_enroll_batch.php"
+                    class="text-indigo-600 font-bold hover:underline inline-flex items-center">
+                    Manage Enrollments &rarr;
+                </a>
             </div>
 
-            <div
-                class="bg-gray-50 p-6 rounded-xl shadow-lg border-t-4 border-red-500 hover:shadow-xl transition duration-300">
-                <h3 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <svg class="w-6 h-6 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M12 6.253v13m0-13C10.832 5.477 9.203 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.8 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.8 5 16.5 5c1.691 0 3.332.477 4.5 1.253v13C19.832 18.477 18.2 18 16.5 18s-3.332.477-4.5 1.253">
-                        </path>
-                    </svg>
-                    Course Oversight
-                </h3>
-                <p class="text-gray-600 mt-2 text-sm">Approve, manage, and audit all course content.</p>
-                <a href="course_oversight.php"
-                    class="text-red-500 hover:text-red-700 mt-3 block text-sm font-medium">Manage Courses →</a>
+            <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition border-t-4 border-purple-600">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Instructors by Dept</h3>
+                <p class="text-gray-600 text-sm mb-4">View list of instructors filtered by their department (e.g., SWE).
+                </p>
+                <a href="admin_view_instructors.php"
+                    class="text-purple-600 font-bold hover:underline inline-flex items-center">
+                    View Instructors &rarr;
+                </a>
             </div>
 
-            <div
-                class="bg-gray-50 p-6 rounded-xl shadow-lg border-t-4 border-green-500 hover:shadow-xl transition duration-300">
-                <h3 class="text-xl font-semibold text-gray-800 flex items-center">
-                    <svg class="w-6 h-6 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6m4 0a2 2 0 002 2h2a2 2 0 002-2m-8 0h4m-4 0v-1m8 1v-1m8 1v-1m0-9a2 2 0 00-2-2h-4a2 2 0 00-2 2v1m-4 0h4m-4 0v-1m8 1v-1m0 0a2 2 0 00-2-2h-4a2 2 0 00-2 2v1m-4 0h4m-4 0v-1">
-                        </path>
-                    </svg>
-                    System Reports
-                </h3>
-                <p class="text-gray-600 mt-2 text-sm">Access system analytics, performance logs, and reports.</p>
-                <a href="system_reports.php"
-                    class="text-green-500 hover:text-green-700 mt-3 block text-sm font-medium">View Analytics →</a>
+            <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition border-t-4 border-blue-600">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Manage Structure</h3>
+                <p class="text-gray-600 text-sm mb-4">Create or edit Departments, Batches, and Sections.</p>
+                <a href="admin_manage_structure.php"
+                    class="text-blue-600 font-bold hover:underline inline-flex items-center">
+                    Edit Structure &rarr;
+                </a>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition border-t-4 border-teal-600">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Course Oversight</h3>
+                <p class="text-gray-600 text-sm mb-4">View all courses and monitor instructor activity.</p>
+                <a href="course_oversight.php" class="text-teal-600 font-bold hover:underline inline-flex items-center">
+                    View Courses &rarr;
+                </a>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition border-t-4 border-orange-500">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Manage Users</h3>
+                <p class="text-gray-600 text-sm mb-4">Edit or delete user accounts (Students/Instructors).</p>
+                <a href="admin_manage_users.php"
+                    class="text-orange-600 font-bold hover:underline inline-flex items-center">
+                    Edit Users &rarr;
+                </a>
             </div>
 
         </div>
-
-        <div class="mt-8 text-center text-gray-400 text-xs border-t pt-4">
-            <p>Debug Info: Database: <?php echo DB_NAME; ?> | Role: <?php echo $_SESSION['user_role']; ?> | User ID:
-                <?php echo $_SESSION['user_id']; ?>
-            </p>
-        </div>
-    </div>
-
+    </main>
 </body>
 
 </html>
