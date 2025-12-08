@@ -10,7 +10,7 @@ require_once 'db_config.php';
 
 // Security Check: Must be logged in as an Instructor
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'instructor') {
-    header("Location: login.html?status=error&message=Access%20Denied.");
+    header("Location: login.php?status=error&message=Access%20Denied.");
     exit();
 }
 

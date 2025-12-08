@@ -1,230 +1,210 @@
 <?php
 /**
- * SkillPath Project: Instructor Gradebook Page (Functional)
- *
- * This page allows the instructor to select an assignment, view student submissions,
- * and record/update the grade in the submissions table.
- *
- * FIX: The SQL query is updated to fetch from 'submissions' first, ensuring
- * that all submitted assignments appear, regardless of enrollment status bugs.
+ * SkillPath Project: Instructor Gradebook (File Grading)
+ * Fixes: Solved 'Unknown column' error by using 'submission_path'.
+ * Updated session security to match index.php.
  */
-
 session_start();
 require_once 'db_config.php';
 
-// Security Check: Must be logged in and the role must be 'instructor'
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'instructor') {
-    header("Location: login.html?status=error&message=Access%20Denied.");
+// 1. SECURITY CHECK (Updated to match your login system)
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'instructor') {
+    header("Location: login.php");
     exit();
 }
 
 $user_id = $_SESSION['user_id'];
 $message = null;
-$courses = [];
 $assignments = [];
-$submissions = []; // Changed from $students
+$submissions = [];
 $selected_assignment_id = $_GET['assignment_id'] ?? null;
-$selected_course_id = null;
 
-// --- Process Grade Submission (Updates Submissions Table) ---
+// --- Process Grade Save ---
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['grade_submit'])) {
-    $student_id = $_POST['student_id'];
-    $grade_value = $_POST['grade_value'];
-    $assignment_id = $_POST['assignment_id']; // This is the assignment_id
-    $submission_id = $_POST['submission_id']; // This is the specific submission id
+    $sub_id = $_POST['submission_id'];
+    $grade = $_POST['grade_value'];
 
     try {
         $conn = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
-        if ($conn->connect_error) { throw new Exception("Connection failed: " . $conn->connect_error); }
-        
-        // Update the 'grade' in the 'submissions' table where the ID matches
-        $sql = "UPDATE submissions SET grade = ? WHERE id = ? AND student_id = ?";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("iii", $grade_value, $submission_id, $student_id);
-        
+        $stmt = $conn->prepare("UPDATE submissions SET grade = ? WHERE id = ?");
+        $stmt->bind_param("ii", $grade, $sub_id);
         if ($stmt->execute()) {
-            $message = "Grade of {$grade_value} successfully recorded!";
+            $message = "Grade recorded successfully!";
         } else {
-            $message = "Error grading submission: " . $conn->error;
+            $message = "Error saving grade.";
         }
         $stmt->close();
         $conn->close();
-
-    } catch (Exception $e) { $message = "Database Error: " . $e->getMessage(); }
-    
-    // Redirect back to the page to show the updated data
-    header("Location: instructor_gradebook.php?assignment_id=" . urlencode($assignment_id) . "&status=success&message=" . urlencode($message));
-    exit();
+    } catch (Exception $e) {
+        $message = "Database Error: " . $e->getMessage();
+    }
 }
 
-// --- Fetch Instructor's Courses & Assignments ---
+// --- Fetch Data ---
 try {
     $conn = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
-    if ($conn->connect_error) { throw new Exception("Connection failed: " . $conn->connect_error); }
-    
-    // Fetch courses taught by the instructor
-    $sql_courses = "SELECT id, course_code, title FROM courses WHERE instructor_id = ?";
-    $stmt_courses = $conn->prepare($sql_courses);
-    $stmt_courses->bind_param("i", $user_id);
-    $stmt_courses->execute();
-    $result_courses = $stmt_courses->get_result();
-    while ($row = $result_courses->fetch_assoc()) { $courses[] = $row; }
-    $stmt_courses->close();
-    
-    // Fetch ALL assignments created by this instructor's courses for the dropdown
-    if (!empty($courses)) {
-        $course_ids = array_column($courses, 'id');
-        $sql = "SELECT a.id, a.course_id, a.title, c.course_code 
-                FROM assignments a 
-                JOIN courses c ON a.course_id = c.id
-                WHERE a.course_id IN (" . implode(',', array_map('intval', $course_ids)) . ") 
-                ORDER BY a.due_date DESC";
-        $assignments = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
+
+    // 2. GET ASSIGNMENTS
+    // We fetch all assignments for this instructor's courses
+    $sql = "SELECT a.id, a.title, c.course_code
+            FROM assignments a 
+            JOIN courses c ON a.course_id = c.id
+            WHERE c.instructor_id = ? 
+            ORDER BY a.due_date DESC";
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $row['display'] = htmlspecialchars($row['course_code'] . " - " . $row['title']);
+        $assignments[] = $row;
     }
-    
-    // --- Fetch Submissions for Selected Assignment ---
+    $stmt->close();
+
+    // 3. GET SUBMISSIONS (If assignment selected)
     if ($selected_assignment_id) {
-        
-        // *** THE FIX IS HERE ***
-        // We query from SUBMISSIONS first, then join USERS.
-        // This finds the submission (like in your screenshot) regardless of enrollment.
-        $sql_subs = "SELECT 
-                    u.id AS student_id, 
-                    u.full_name, 
-                    u.email, 
-                    s.id AS submission_id, 
-                    s.submitted_at, 
-                    s.grade, 
-                    s.submission_path 
-                FROM submissions s
-                JOIN users u ON s.student_id = u.id
-                WHERE s.assignment_id = ? AND u.role = 'student'";
-        
-        $stmt_subs = $conn->prepare($sql_subs);
-        $stmt_subs->bind_param("i", $selected_assignment_id);
-        $stmt_subs->execute();
-        $submissions = $stmt_subs->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt_subs->close();
+        // FIX: Changed 'file_path' to 'submission_path'
+        $sql_sub = "SELECT sub.id, sub.submitted_at, sub.submission_path, sub.grade, u.full_name 
+                    FROM submissions sub
+                    JOIN users u ON sub.student_id = u.id
+                    WHERE sub.assignment_id = ?
+                    ORDER BY sub.submitted_at DESC";
+
+        $stmt = $conn->prepare($sql_sub);
+        $stmt->bind_param("i", $selected_assignment_id);
+        $stmt->execute();
+        $submissions = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
     }
     $conn->close();
+} catch (Exception $e) {
+    $message = "Error: " . $e->getMessage();
+}
 
-} catch (Exception $e) { $message = "Database Error: " . $e->getMessage(); }
-
-// Handle redirect messages
-if (isset($_GET['message'])) { $message = $_GET['message']; }
-
-$user_name = $_SESSION['user_name'];
+$user_name = $_SESSION['name'] ?? 'Instructor';
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grade Submissions | SkillPath</title>
+    <title>Grade Files | SkillPath</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style> body { font-family: 'Inter', sans-serif; background-color: #f4f7f9; } </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f9;
+        }
+    </style>
 </head>
-<body class="min-h-screen flex flex-col items-center p-4">
 
-    <div class="w-full max-w-6xl bg-white shadow-xl rounded-xl p-8 md:p-12 mt-8">
-        <div class="flex justify-between items-center border-b pb-4 mb-6">
-            <h1 class="text-3xl font-bold text-orange-700">Grade Submissions</h1>
-            <a href="instructor_dashboard.php" class="text-indigo-500 hover:text-indigo-700 font-semibold">&larr; Back to Dashboard</a>
+<body class="min-h-screen p-8 flex justify-center">
+
+    <div class="w-full max-w-6xl bg-white p-8 rounded-xl shadow-lg border-t-4 border-orange-500">
+        <div class="flex justify-between items-center mb-8 border-b pb-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">Check Assignment Files</h1>
+                <p class="text-sm text-gray-500 mt-1">Select an assignment below to view student uploads and enter
+                    grades.</p>
+            </div>
+            <a href="instructor_dashboard.php" class="text-indigo-600 hover:text-indigo-800 font-semibold">&larr; Back
+                to Dashboard</a>
         </div>
-        
-        <?php if (isset($_GET['message'])): ?>
-            <div class="p-4 mb-4 rounded-lg <?php echo strpos($_GET['message'], 'successfully') !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'; ?>">
-                <?php echo htmlspecialchars($_GET['message']); ?>
+
+        <?php if ($message): ?>
+            <div class="bg-green-100 border border-green-200 text-green-800 p-4 rounded-lg mb-6 text-center font-medium">
+                <?= htmlspecialchars($message) ?>
             </div>
         <?php endif; ?>
 
-        <!-- Assignment Selection Form -->
-        <form method="GET" action="instructor_gradebook.php" class="mb-8 p-4 border border-gray-200 rounded-lg bg-gray-50">
-            <label for="assignment_select" class="block text-lg font-medium text-gray-700 mb-2">Select Assignment to Grade</label>
-            <div class="flex space-x-4">
-                <select id="assignment_select" name="assignment_id" required 
-                        class="flex-grow px-4 py-2 border border-gray-300 rounded-lg shadow-sm">
-                    <option value="">-- Choose an Assignment --</option>
-                    <?php foreach ($assignments as $assign): 
-                        $option_label = htmlspecialchars("{$assign['course_code']} - {$assign['title']}");
-                    ?>
-                        <option value="<?php echo htmlspecialchars($assign['id']); ?>" 
-                                <?php echo ($selected_assignment_id == $assign['id']) ? 'selected' : ''; ?>>
-                            <?php echo $option_label; ?>
+        <form method="GET" class="mb-8 bg-gray-50 p-6 rounded-lg border border-gray-200">
+            <label class="block text-sm font-bold text-gray-700 mb-2">Select Assignment to Grade</label>
+            <div class="flex gap-4">
+                <select name="assignment_id"
+                    class="border p-2 rounded w-full focus:ring-2 focus:ring-orange-500 outline-none">
+                    <option value="">-- Choose Assignment --</option>
+                    <?php foreach ($assignments as $a): ?>
+                        <option value="<?= $a['id'] ?>" <?= $selected_assignment_id == $a['id'] ? 'selected' : '' ?>>
+                            <?= $a['display'] ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
-                <button type="submit" class="px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg shadow-md hover:bg-indigo-700">
-                    Load Submissions
-                </button>
+                <button type="submit"
+                    class="bg-orange-600 text-white px-6 py-2 rounded font-bold hover:bg-orange-700">Load</button>
             </div>
         </form>
 
-        <!-- Student Grading List -->
-        <!-- FIX: Check if $submissions is empty, not $students -->
-        <?php if ($selected_assignment_id && !empty($submissions)): ?> 
-            <h2 class="text-2xl font-bold text-gray-700 mb-4">Grading Submissions</h2>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
-                            <th class="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted File</th>
-                            <th class="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted At</th>
-                            <th class="py-3 px-6 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Grade (0-100)</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        <?php foreach ($submissions as $sub): 
-                            $has_submitted = !is_null($sub['submitted_at']);
-                            $grade_text = !is_null($sub['grade']) ? $sub['grade'] : "";
-                        ?>
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900"><?php echo htmlspecialchars($sub['full_name']); ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                <?php if ($has_submitted): ?>
-                                    <a href="<?php echo htmlspecialchars($sub['submission_path']); ?>" target="_blank" class="text-blue-600 hover:underline">
-                                        View Submitted File
-                                    </a>
-                                <?php else: ?>
-                                    <span class="text-red-600 font-semibold">Not Submitted</span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <?php echo $has_submitted ? date('M j, Y H:i A', strtotime($sub['submitted_at'])) : 'N/A'; ?>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                <form method="POST" action="instructor_gradebook.php?assignment_id=<?php echo htmlspecialchars($selected_assignment_id); ?>" class="flex justify-center items-center space-x-2">
-                                    <input type="hidden" name="grade_submit" value="1">
-                                    <input type="hidden" name="student_id" value="<?php echo htmlspecialchars($sub['student_id']); ?>">
-                                    <input type="hidden" name="submission_id" value="<?php echo htmlspecialchars($sub['submission_id']); ?>">
-                                    <input type="hidden" name="assignment_id" value="<?php echo htmlspecialchars($selected_assignment_id); ?>">
-                                    
-                                    <input type="number" name="grade_value" min="0" max="100" required
-                                           value="<?php echo htmlspecialchars($grade_text); ?>"
-                                           class="w-20 px-3 py-1 border border-gray-300 rounded-lg text-center"
-                                           <?php echo !$has_submitted ? 'disabled' : ''; ?>>
-                                    <button type="submit" class="text-xs bg-orange-500 text-white py-1 px-3 rounded-lg hover:bg-orange-600 transition duration-150"
-                                            <?php echo !$has_submitted ? 'disabled title="Cannot grade until submitted"' : ''; ?>>
-                                        Save Grade
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php elseif ($selected_assignment_id): ?>
-             <div class="p-6 text-center text-gray-500 border-dashed border-2 border-gray-300 rounded-lg">
-                <p class="text-lg mb-2">No submissions found for this assignment.</p>
+        <?php if ($selected_assignment_id): ?>
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Student Submissions</h2>
+
+            <?php if (!empty($submissions)): ?>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse text-left">
+                        <thead>
+                            <tr class="bg-gray-100 text-gray-600 uppercase text-sm leading-normal">
+                                <th class="py-3 px-6 text-left">Student Name</th>
+                                <th class="py-3 px-6 text-left">Submitted File</th>
+                                <th class="py-3 px-6 text-center">Submission Date</th>
+                                <th class="py-3 px-6 text-center">Grade (0-100)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-gray-600 text-sm font-light">
+                            <?php foreach ($submissions as $s): ?>
+                                <tr class="border-b border-gray-200 hover:bg-gray-50 transition">
+                                    <td class="py-3 px-6 font-medium text-gray-800">
+                                        <?= htmlspecialchars($s['full_name']) ?>
+                                    </td>
+                                    <td class="py-3 px-6">
+                                        <?php if (!empty($s['submission_path'])): ?>
+                                            <a href="<?= htmlspecialchars($s['submission_path']) ?>" target="_blank"
+                                                class="bg-blue-100 text-blue-700 py-1 px-3 rounded text-xs font-bold hover:bg-blue-200 flex items-center w-fit gap-1">
+                                                Download / View
+                                                <span class="text-lg">&nearr;</span>
+                                            </a>
+                                        <?php else: ?>
+                                            <span class="text-red-400 italic">No file found</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="py-3 px-6 text-center">
+                                        <?= date("M j, g:i a", strtotime($s['submitted_at'])) ?>
+                                    </td>
+                                    <td class="py-3 px-6 text-center">
+                                        <form method="POST" class="flex justify-center items-center gap-2">
+                                            <input type="hidden" name="grade_submit" value="1">
+                                            <input type="hidden" name="submission_id" value="<?= $s['id'] ?>">
+                                            <input type="hidden" name="assignment_id" value="<?= $selected_assignment_id ?>">
+
+                                            <input type="number" name="grade_value" value="<?= $s['grade'] ?>"
+                                                class="w-20 border border-gray-300 p-1 text-center rounded focus:ring-orange-500 focus:border-orange-500"
+                                                min="0" max="100" placeholder="-">
+
+                                            <button type="submit"
+                                                class="bg-green-600 text-white px-3 py-1 rounded shadow hover:bg-green-700 text-xs font-bold uppercase">
+                                                Save
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php else: ?>
+                <div class="p-8 text-center bg-gray-50 border border-dashed border-gray-300 rounded-lg">
+                    <p class="text-gray-500 text-lg">No submissions received for this assignment yet.</p>
+                </div>
+            <?php endif; ?>
+
+        <?php elseif (empty($assignments)): ?>
+            <div class="text-center p-8 text-gray-500">You have no assignments created.</div>
+        <?php else: ?>
+            <div class="text-center p-8 text-gray-400 italic border-2 border-dashed rounded-lg">
+                &uarr; Please select an assignment above to start grading.
             </div>
         <?php endif; ?>
-
-        <div class="mt-8 text-center text-gray-400 text-xs border-t pt-4">
-            <p>Instructor Page - Role: <?php echo $_SESSION['user_role']; ?> | User ID: <?php echo $_SESSION['user_id']; ?></p>
-        </div>
     </div>
-
 </body>
+
 </html>
