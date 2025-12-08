@@ -1,91 +1,115 @@
 <?php
 /**
- * SkillPath Project: Student Dashboard
- * * This is the secure landing page for Student users.
+ * SkillPath - Student Dashboard
+ * Fixed: Session keys ('role', 'name') and Batch Info display.
  */
-
-// Start a session to access user login information
 session_start();
+require_once 'db_config.php';
 
-// Security Check: Must be logged in and the role must be 'student'
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
-    session_unset();
-    session_destroy();
-    header("Location: login.html?status=error&message=Access%20Denied.%20Please%20log%20in.");
+// 1. SECURITY CHECK (FIXED)
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
+    header("Location: login.php");
     exit();
 }
 
-// User is successfully authenticated as a Student.
-$user_name = $_SESSION['user_name'];
+$student_id = $_SESSION['user_id'];
+$student_name = $_SESSION['name'] ?? 'Student';
+$batch_name = "No Batch Assigned";
+
+// 2. Fetch Batch Info
+try {
+    $conn = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
+    $sql_user = "SELECT b.batch_name FROM users u LEFT JOIN batches b ON u.batch_id = b.id WHERE u.id = ?";
+    $stmt = $conn->prepare($sql_user);
+    $stmt->bind_param("i", $student_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($row = $res->fetch_assoc()) {
+        $batch_name = $row['batch_name'] ?? "No Batch Assigned";
+    }
+    $stmt->close();
+    $conn->close();
+} catch (Exception $e) {
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Dashboard | SkillPath</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f4f7f9;
+            background-color: #f7f9fb;
         }
     </style>
 </head>
 
-<body class="min-h-screen flex flex-col items-center p-4">
+<body class="min-h-screen flex flex-col">
 
-    <div class="w-full max-w-5xl flex justify-end mb-4">
-        <a href="logout.php"
-            class="py-2 px-4 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 transition duration-300">
-            Logout
-        </a>
-    </div>
-
-    <div class="w-full max-w-5xl bg-white shadow-2xl rounded-xl p-8 md:p-12">
-        <h1 class="text-4xl font-extrabold text-blue-700 mb-2">
-            Welcome Back, <?php echo htmlspecialchars(explode(' ', $user_name)[0]); ?>
-        </h1>
-        <p class="text-lg text-gray-500 mb-8 border-b pb-4">
-            You are logged in as a **Student**.
-        </p>
-
-        <h2 class="text-2xl font-bold text-gray-700 mb-6">Your Courses & Progress</h2>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-            <div
-                class="bg-gray-50 p-6 rounded-xl shadow-lg border-t-4 border-blue-500 hover:shadow-xl transition duration-300">
-                <h3 class="text-xl font-semibold text-gray-800">My Enrolled Courses</h3>
-                <p class="text-gray-600 mt-2 text-sm">Access your course materials, lectures, and quizzes.</p>
-                <a href="student_courses.php"
-                    class="text-blue-500 hover:text-blue-700 mt-3 block text-sm font-medium">View Courses →</a>
-            </div>
-
-            <div
-                class="bg-gray-50 p-6 rounded-xl shadow-lg border-t-4 border-purple-500 hover:shadow-xl transition duration-300">
-                <h3 class="text-xl font-semibold text-gray-800">Check Grades</h3>
-                <p class="text-gray-600 mt-2 text-sm">View your official grades and performance summaries.</p>
-                <a href="student_grades.php"
-                    class="text-purple-500 hover:text-purple-700 mt-3 block text-sm font-medium">View Grades →</a>
-            </div>
-
-            <div
-                class="bg-gray-50 p-6 rounded-xl shadow-lg border-t-4 border-yellow-500 hover:shadow-xl transition duration-300">
-                <h3 class="text-xl font-semibold text-gray-800">My Appeals</h3>
-                <p class="text-gray-600 mt-2 text-sm">Check status and feedback on your grade challenges.</p>
-                <a href="student_my_appeals.php"
-                    class="text-yellow-600 hover:text-yellow-800 mt-3 block text-sm font-medium">Check Status →</a>
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center">
+                    <span class="text-2xl font-bold text-teal-600">SkillPath <span class="text-gray-400 text-lg">|
+                            Student</span></span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-600">
+                        <?= htmlspecialchars($student_name) ?>
+                        <span
+                            class="bg-teal-50 text-teal-700 text-xs px-2 py-1 rounded ml-2 border border-teal-100"><?= htmlspecialchars($batch_name) ?></span>
+                    </span>
+                    <a href="logout.php"
+                        class="bg-red-50 text-red-600 px-3 py-1 rounded text-sm hover:bg-red-100 transition">Logout</a>
+                </div>
             </div>
         </div>
+    </nav>
 
-        <div class="mt-8 text-center text-gray-400 text-xs border-t pt-4">
-            <p>Debug Info: Role: <?php echo $_SESSION['user_role']; ?> | User ID: <?php echo $_SESSION['user_id']; ?>
-            </p>
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
+
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold text-gray-800">Student Portal</h2>
+            <p class="text-gray-600 mt-2">Welcome back. Here is your academic overview.</p>
         </div>
-    </div>
 
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+
+            <a href="student_assignments.php"
+                class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-500 hover:shadow-md transition group">
+                <h3 class="text-xl font-bold text-gray-800 mb-2 group-hover:text-blue-600">My Assignments</h3>
+                <p class="text-gray-600 mb-4 text-sm">View pending tasks, due dates, and submit your files.</p>
+                <span class="text-blue-600 font-semibold text-sm">View Assignments &rarr;</span>
+            </a>
+
+            <a href="student_courses.php"
+                class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-purple-500 hover:shadow-md transition group">
+                <h3 class="text-xl font-bold text-gray-800 mb-2 group-hover:text-purple-600">Enrolled Courses</h3>
+                <p class="text-gray-600 mb-4 text-sm">Access course materials and details assigned to your batch.</p>
+                <span class="text-purple-600 font-semibold text-sm">Go to Courses &rarr;</span>
+            </a>
+
+            <a href="student_grades.php"
+                class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-teal-500 hover:shadow-md transition group">
+                <h3 class="text-xl font-bold text-gray-800 mb-2 group-hover:text-teal-600">60 Marks Info</h3>
+                <p class="text-gray-600 mb-4 text-sm">Check your Attendance, Class Test, and Viva scores.</p>
+                <span class="text-teal-600 font-semibold text-sm">Check Grades &rarr;</span>
+            </a>
+
+            <a href="student_my_appeals.php"
+                class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-orange-500 hover:shadow-md transition group">
+                <h3 class="text-xl font-bold text-gray-800 mb-2 group-hover:text-orange-600">My Appeals</h3>
+                <p class="text-gray-600 mb-4 text-sm">Check the status of your grade challenges.</p>
+                <span class="text-orange-600 font-semibold text-sm">View Status &rarr;</span>
+            </a>
+
+        </div>
+    </main>
 </body>
 
 </html>

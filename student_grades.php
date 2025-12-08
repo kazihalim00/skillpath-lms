@@ -1,94 +1,50 @@
 <?php
 /**
- * SkillPath Project: Student Grades Page (Functional)
- *
- * FIX: Ensures 'item_type' is lowercase in the database query and link.
+ * SkillPath - Student 60 Marks Info
+ * Fixed: Shows Custom Columns and allows Specific Challenges.
  */
-
 session_start();
 require_once 'db_config.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
-    header("Location: login.html?status=error&message=Access%20Denied.");
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
+    header("Location: login.php");
     exit();
 }
-$user_id = $_SESSION['user_id'];
-$grades = [];
-$message = null;
 
-function getLetterGrade($score)
-{
-    if ($score >= 80)
-        return 'A+';
-    elseif ($score >= 75)
-        return 'A';
-    elseif ($score >= 70)
-        return 'A-';
-    elseif ($score >= 65)
-        return 'B+';
-    elseif ($score >= 60)
-        return 'B';
-    elseif ($score >= 55)
-        return 'B-';
-    elseif ($score >= 50)
-        return 'C+';
-    elseif ($score >= 45)
-        return 'C';
-    elseif ($score >= 40)
-        return 'D';
-    else
-        return 'F';
-}
+$student_id = $_SESSION['user_id'];
+$grades = [];
 
 try {
     $conn = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT);
 
-    // 1. Fetch Assignment Grades (FIX: 'assignment' is lowercase)
-    $sql_assign = "SELECT a.id as item_id, a.course_id, a.title AS item_title, s.grade AS score, a.max_points, s.submitted_at AS graded_at, 'assignment' AS item_type 
-                   FROM submissions s JOIN assignments a ON s.assignment_id = a.id 
-                   WHERE s.student_id = ? AND s.grade IS NOT NULL";
+    // Fetch Course Info + Marks + Custom Column Names
+    $sql = "SELECT c.id as course_id, c.title, c.course_code,
+                   c.assess_1_name, c.assess_2_name, c.assess_3_name,
+                   COALESCE(m.attendance, 0) as att,
+                   COALESCE(m.class_test, 0) as ct,
+                   COALESCE(m.viva, 0) as viva,
+                   COALESCE(m.total, 0) as total,
+                   u.full_name as instructor
+            FROM enrollments e
+            JOIN courses c ON e.course_id = c.id
+            LEFT JOIN users u ON c.instructor_id = u.id
+            LEFT JOIN student_marks m ON (e.student_id = m.student_id AND e.course_id = m.course_id)
+            WHERE e.student_id = ?";
 
-    $stmt = $conn->prepare($sql_assign);
-    $stmt->bind_param("i", $user_id);
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $student_id);
     $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $grades[] = $row;
-    }
-    $stmt->close();
-
-    // 2. Fetch Quiz Grades (FIX: 'quiz' is lowercase)
-    $sql_quiz = "SELECT q.id as item_id, q.course_id, q.title AS item_title, a.score AS score, q.max_points, a.completed_at AS graded_at, 'quiz' AS item_type 
-                 FROM quiz_attempts a JOIN quizzes q ON a.quiz_id = q.id 
-                 WHERE a.student_id = ? AND a.score IS NOT NULL";
-
-    $stmt = $conn->prepare($sql_quiz);
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $grades[] = $row;
-    }
-    $stmt->close();
-
+    $grades = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $conn->close();
-
-    // Sort by date
-    usort($grades, function ($a, $b) {
-        return strtotime($b['graded_at']) - strtotime($a['graded_at']);
-    });
-
 } catch (Exception $e) {
-    $message = "Database Error: " . $e->getMessage();
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Grades | SkillPath</title>
+    <title>My Grades</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -98,71 +54,59 @@ try {
     </style>
 </head>
 
-<body class="min-h-screen flex flex-col items-center p-4">
+<body class="p-8 flex justify-center">
 
-    <div class="w-full max-w-5xl bg-white shadow-xl rounded-xl p-8 md:p-12 mt-8">
-        <div class="flex justify-between items-center border-b pb-4 mb-6">
-            <h1 class="text-3xl font-bold text-purple-700">My Official Grades</h1>
-            <a href="student_dashboard.php" class="text-indigo-500 hover:text-indigo-7V00 font-semibold">&larr; Back to
-                Dashboard</a>
+    <div class="w-full max-w-6xl bg-white shadow-xl rounded-xl p-8 border-t-4 border-teal-500">
+        <div class="flex justify-between items-center mb-8 border-b pb-4">
+            <h1 class="text-3xl font-bold text-gray-800">60 Marks Info</h1>
+            <a href="student_dashboard.php" class="text-teal-600 hover:underline">&larr; Back</a>
         </div>
 
-        <?php if (isset($_GET['status'])): ?>
-            <div
-                class="p-4 mb-4 rounded-lg <?php echo $_GET['status'] == 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'; ?>">
-                <?php echo htmlspecialchars($_GET['message']); ?>
-            </div>
-        <?php endif; ?>
-
         <?php if (empty($grades)): ?>
-            <div class="p-6 text-center text-gray-500 border-dashed border-2 rounded-lg">
-                <p class="text-lg">You have not received any grades yet.</p>
-            </div>
+            <p class="text-center text-gray-500 p-8">No grades found.</p>
         <?php else: ?>
-            <div class="overflow-x-auto">
-                <table class="min-w-full bg-white border border-gray-200 mt-6">
-                    <thead class="bg-gray-100">
-                        <tr>
-                            <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Title</th>
-                            <th class="py-2 px-4 border-b text-center text-sm font-semibold text-gray-700">Type</th>
-                            <th class="py-2 px-4 border-b text-center text-sm font-semibold text-gray-700">Score</th>
-                            <th class.py-2 px-4 border-b text-center text-sm font-semibold text-gray-700">Grade</th>
-                            <th class="py-2 px-4 border-b text-center text-sm font-semibold text-gray-700">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($grades as $grade):
-                            $score = $grade['score'];
-                            $max = $grade['max_points'];
-                            $pct = ($max > 0) ? round(($score / $max) * 100) : 0;
-                            $letter = getLetterGrade($pct);
-                            $color = $pct >= 70 ? 'text-green-600' : 'text-red-600';
+            <div class="grid gap-6">
+                <?php foreach ($grades as $g):
+                    $col1 = $g['assess_1_name'] ?: 'Attendance';
+                    $col2 = $g['assess_2_name'] ?: 'Class Test';
+                    $col3 = $g['assess_3_name'] ?: 'Viva';
+                    ?>
+                    <div class="border rounded-xl p-6 bg-gray-50 hover:shadow-md transition">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-800"><?= htmlspecialchars($g['title']) ?></h2>
+                                <p class="text-sm text-gray-500"><?= htmlspecialchars($g['course_code']) ?> | Instr:
+                                    <?= htmlspecialchars($g['instructor']) ?>
+                                </p>
+                            </div>
+                            <div class="text-right">
+                                <span class="block text-2xl font-bold text-teal-700"><?= $g['total'] ?> / 60</span>
+                                <span class="text-xs text-gray-400">Total Score</span>
+                            </div>
+                        </div>
 
-                            // The value from the DB ($grade['item_type']) is now guaranteed lowercase
-                            $item_type_lowercase = $grade['item_type'];
-                            ?>
-                            <tr>
-                                <td class="py-3 px-4 border-b"><?php echo htmlspecialchars($grade['item_title']); ?></td>
-                                <td class="py-3 px-4 border-b text-center text-xs uppercase font-bold text-gray-500">
-                                    <?php echo htmlspecialchars($grade['item_type']); ?>
-                                </td>
-                                <td class="py-3 px-4 border-b text-center font-bold <?php echo $color; ?>">
-                                    <?php echo $score . " / " . $max; ?>
-                                </td>
-                                <td class="py-3 px-4 border-b text-center font-extrabold text-lg text-gray-800">
-                                    <?php echo $letter; ?>
-                                </td>
-                                <td class="py-3 px-4 border-b text-center">
-                                    <!-- Pass the correct lowercase type to the URL -->
-                                    <a href="student_appeal.php?type=<?php echo $item_type_lowercase; ?>&id=<?php echo $grade['item_id']; ?>&course_id=<?php echo $grade['course_id']; ?>&title=<?php echo urlencode($grade['item_title']); ?>"
-                                        class="text-xs bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-3 rounded transition">
-                                        Appeal / Challenge
-                                    </a>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        <div class="grid grid-cols-3 gap-4 text-center">
+                            <div class="bg-white p-3 rounded border">
+                                <p class="text-xs text-gray-500 uppercase"><?= htmlspecialchars($col1) ?></p>
+                                <p class="text-lg font-bold"><?= $g['att'] ?></p>
+                                <a href="student_appeal.php?course_id=<?= $g['course_id'] ?>&component=<?= urlencode($col1) ?>&title=<?= urlencode($g['title']) ?>"
+                                    class="text-xs text-orange-600 hover:underline">Challenge</a>
+                            </div>
+                            <div class="bg-white p-3 rounded border">
+                                <p class="text-xs text-gray-500 uppercase"><?= htmlspecialchars($col2) ?></p>
+                                <p class="text-lg font-bold"><?= $g['ct'] ?></p>
+                                <a href="student_appeal.php?course_id=<?= $g['course_id'] ?>&component=<?= urlencode($col2) ?>&title=<?= urlencode($g['title']) ?>"
+                                    class="text-xs text-orange-600 hover:underline">Challenge</a>
+                            </div>
+                            <div class="bg-white p-3 rounded border">
+                                <p class="text-xs text-gray-500 uppercase"><?= htmlspecialchars($col3) ?></p>
+                                <p class="text-lg font-bold"><?= $g['viva'] ?></p>
+                                <a href="student_appeal.php?course_id=<?= $g['course_id'] ?>&component=<?= urlencode($col3) ?>&title=<?= urlencode($g['title']) ?>"
+                                    class="text-xs text-orange-600 hover:underline">Challenge</a>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
             </div>
         <?php endif; ?>
     </div>

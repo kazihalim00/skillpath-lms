@@ -1,14 +1,9 @@
 <?php
-/**
- * SkillPath Project: Student Appeals List
- *
- * Displays the status of grade appeals and instructor feedback.
- */
 session_start();
 require_once 'db_config.php';
-
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'student') {
-    header("Location: login.html");
+// FIX: use 'role'
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
+    header("Location: login.php");
     exit();
 }
 $user_id = $_SESSION['user_id'];
